@@ -190,76 +190,76 @@ namespace Server
 
         private void read2(IAsyncResult result)
         {
-            MyClient obData = (MyClient)result.AsyncState;
-            int bytesLength = 0;
-            if (obData.client.Connected)
+            MyClient obj = (MyClient)result.AsyncState;
+            int bytes = 0;
+            if (obj.client.Connected)
             {
                 try
                 {
-                    bytesLength = obData.stream.EndRead(result);
+                    bytes = obj.stream.EndRead(result);
                 }
                 catch (Exception ex)
                 {
                     checkLogAndClear(ex.Message);
                 }
             }
-            if (bytesLength > 0)
+            if (bytes > 0)
             {
-                obData.data.AppendFormat("{0}", Encoding.UTF8.GetString(obData.buffer, 0, bytesLength));
+                obj.data.AppendFormat("{0}", Encoding.UTF8.GetString(obj.buffer, 0, bytes));
                 try
                 {
-                    if (obData.stream.DataAvailable)
+                    if (obj.stream.DataAvailable)
                     {
-                        obData.stream.BeginRead(obData.buffer, 0, obData.buffer.Length, new AsyncCallback(read2), obData);
+                        obj.stream.BeginRead(obj.buffer, 0, obj.buffer.Length, new AsyncCallback(read2), obj);
                     }
                     else
                     {
-                        JavaScriptSerializer json = new JavaScriptSerializer();
-                        Dictionary<string, string> data = json.Deserialize<Dictionary<string, string>>(obData.data.ToString());
+                        JavaScriptSerializer json = new JavaScriptSerializer(); // feel free to use JSON serializer
+                        Dictionary<string, string> data = json.Deserialize<Dictionary<string, string>>(obj.data.ToString());
                         //nhận serialize bên gửi, deserialize để dùng
                         //lưu vào mảng dictionary
 
-                        //if-else kiểm tra ràng buộc json có chứa properties là username và key
                         if (!data.ContainsKey("username") || data["username"].Length < 1)
                         {
-                            obData.client.Close();
+                            obj.client.Close();
                         }
                         else if (!data.ContainsKey("key") || !data["key"].Equals(txtKey.Text))
                         {
-                            obData.client.Close();
+                            obj.client.Close();
                         }
                         else
                         {
-                            obData.username.Append(data["username"].Length > 200 ? data["username"].Substring(0, 200) : data["username"]);
-                            sendMsg("{\"status\": \"authorized\"}", obData);
+                            obj.username.Append(data["username"].Length > 200 ? data["username"].Substring(0, 200) : data["username"]);
+                            sendMsg("{\"status\": \"authorized\"}", obj);
                         }
-                        obData.data.Clear();
-                        obData.handle.Set();
+                        obj.data.Clear();
+                        obj.handle.Set();
                     }
                 }
                 catch (Exception ex)
                 {
-                    obData.data.Clear();
+                    obj.data.Clear();
                     checkLogAndClear(ex.Message);
-                    obData.handle.Set();
+                    obj.handle.Set();
                 }
             }
             else
             {
-                obData.client.Close();
-                obData.handle.Set();
+                obj.client.Close();
+                obj.handle.Set();
             }
         }
-        private bool Authorize(MyClient obj)
+
+        private bool Authorize(MyClient obData)
         {
             bool success = false;
-            while (obj.client.Connected)
+            while (obData.client.Connected)
             {
                 try
                 {
-                    obj.stream.BeginRead(obj.buffer, 0, obj.buffer.Length, new AsyncCallback(read2), obj);
-                    obj.handle.WaitOne();
-                    if (obj.username.Length > 0)
+                    obData.stream.BeginRead(obData.buffer, 0, obData.buffer.Length, new AsyncCallback(read2), obData);
+                    obData.handle.WaitOne();
+                    if (obData.username.Length > 0)
                     {
                         success = true;
                         break;
@@ -273,22 +273,22 @@ namespace Server
             return success;
         }
 
-        private void checkConnection (MyClient obj)
+        private void checkConnection (MyClient obData)
         {
-            if (Authorize(obj))
+            if (Authorize(obData))
             {
-                clients.TryAdd(obj.id, obj);
-                addClientInfo(obj.id, obj.username.ToString());
-                string message = string.Format("User {0} đã kết nối thành công vào server", obj.username);
+                clients.TryAdd(obData.id, obData);
+                addClientInfo(obData.id, obData.username.ToString());
+                string message = string.Format("User {0} đã kết nối thành công vào server", obData.username);
                 //gửi message thông báo user [username] đã kết nối vào server
                 checkLogAndClear(message);
-                sendMsg(message, obj.id);
-                while (obj.client.Connected)
+                sendMsg(message, obData.id);
+                while (obData.client.Connected)
                 {
                     try
                     {
-                        obj.stream.BeginRead(obj.buffer, 0, obj.buffer.Length, new AsyncCallback(read1), obj);
-                        obj.handle.WaitOne();
+                        obData.stream.BeginRead(obData.buffer, 0, obData.buffer.Length, new AsyncCallback(read1), obData);
+                        obData.handle.WaitOne();
                     }
                     catch (Exception ex)
                     {
@@ -296,10 +296,10 @@ namespace Server
                     }
                 }
                 //check client disconnect, nếu có thì xóa info user tại dataGridView
-                obj.client.Close();
-                clients.TryRemove(obj.id, out MyClient rn);
+                obData.client.Close();
+                clients.TryRemove(obData.id, out MyClient rn);
                 removeClientInfo(rn.id);
-                message = string.Format("User {0} đã rời khỏi server", obj.username);
+                message = string.Format("User {0} đã rời khỏi server", obData.username);
                 checkLogAndClear(message);
                 //gửi messenge này đến toàn bộ client hiện đang online
                 sendMsg(message, rn.id);
@@ -353,7 +353,7 @@ namespace Server
                             checkLogAndClear(ex.Message);
                         }
                     }
-                    else { Thread.Sleep(1500); }
+                    else { Thread.Sleep(1000); }
                 }
                 checkBttStarttActive(false);
             }
@@ -390,7 +390,6 @@ namespace Server
                     checkError = true;
                     checkLogAndClear("IP Adress không được để trống!");
                 }
-                IPAddress ip = IPAddress.Parse(txtAdress.Text);
                 if (port.Length < 1)
                 {
                     checkError = true;
@@ -406,8 +405,9 @@ namespace Server
                     checkError = true;
                     checkLogAndClear("Username không được để trống!");
                 }
-                if (checkError == false)
+                if (!checkError)
                 {
+                    IPAddress ip = IPAddress.Parse(txtAdress.Text);
                     int intPort = Int32.Parse(port);
                     listener = new Thread(() => checkListener(ip, intPort))
                     {
@@ -417,7 +417,7 @@ namespace Server
                 }
             }
         }
-        
+
         private void Write(IAsyncResult result)
         {
             MyClient newClient = (MyClient)result.AsyncState;
@@ -447,17 +447,6 @@ namespace Server
                 {
                     checkLogAndClear(ex.Message);
                 }
-            }
-        }
-        private void sendMsg(string message, MyClient obj)
-        {
-            if (send == null || send.IsCompleted)
-            {
-                send = Task.Factory.StartNew(() => beginWrite(message, obj));
-            }
-            else
-            {
-                send.ContinueWith(antecendent => beginWrite(message, obj));
             }
         }
 
@@ -492,6 +481,18 @@ namespace Server
             }
         }
 
+        private void sendMsg(string message, MyClient obj)
+        {
+            if (send == null || send.IsCompleted)
+            {
+                send = Task.Factory.StartNew(() => beginWrite(message, obj));
+            }
+            else
+            {
+                send.ContinueWith(antecendent => beginWrite(message, obj));
+            }
+        }
+
         private void txtSendBox_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.Enter)
@@ -500,10 +501,10 @@ namespace Server
                 e.SuppressKeyPress = true;
                 if (txtSendBox.Text.Length > 0)
                 {
-                    string message = txtSendBox.Text;
+                    string msg = txtSendBox.Text;
                     txtSendBox.Clear();
-                    checkLogAndClear(string.Format("You: {0}", message));
-                    sendMsg(string.Format("{0}: {1}", txtUsername.Text.Trim(), message)); //gửi khi nhấn nút enter
+                    checkLogAndClear(string.Format("{0}: {1}", txtUsername.Text.Trim(), msg));
+                    sendMsg(string.Format("{0}: {1}", txtUsername.Text.Trim(), msg));
                 }
             }
         }
@@ -513,7 +514,7 @@ namespace Server
             {
                 string message = txtSendBox.Text;
                 txtSendBox.Clear();
-                checkLogAndClear(string.Format("You: {0}", message));
+                checkLogAndClear(string.Format("{0}: {1}", txtUsername.Text.Trim(), message));
                 sendMsg(string.Format("{0}: {1}", txtUsername.Text.Trim(), message)); //gửi khi nhấn nút send
             }
         }
