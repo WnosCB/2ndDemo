@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.ComponentModel;
@@ -50,7 +50,7 @@ namespace Server
                     if (mssg.Length > 0)
                     {
                         logClientHistory.AppendText(string.Format("[ {0} ] {1}{2}", DateTime.Now.ToString("HH:mm"), mssg, Environment.NewLine));
-                        //in ra thời gian thực + message
+                        //in ra thời gian thực + tên user + message
                         //vd: [9:00] username: hello
                     }
                     else
@@ -162,7 +162,7 @@ namespace Server
                 {
                     if (obData.stream.DataAvailable)
                     {
-                        obData.stream.BeginRead(obData.buffer, 0, bytesLength, new AsyncCallback(read1), obData);
+                        obData.stream.BeginRead(obData.buffer, 0, obData.buffer.Length, new AsyncCallback(read1), obData);
                     }
                     else
                     {
@@ -228,6 +228,11 @@ namespace Server
                         {
                             obData.client.Close();
                         }
+                        else
+                        {
+                            obData.username.Append(data["username"].Length > 200 ? data["username"].Substring(0, 200) : data["username"]);
+                            sendMsg("{\"status\": \"authorized\"}", obData);
+                        }
                         obData.data.Clear();
                         obData.handle.Set();
                     }
@@ -235,8 +240,8 @@ namespace Server
                 catch (Exception ex)
                 {
                     obData.data.Clear();
-                    obData.handle.Set();
                     checkLogAndClear(ex.Message);
+                    obData.handle.Set();
                 }
             }
             else
@@ -513,7 +518,7 @@ namespace Server
             }
         }
 
-        private void Disconnect(int id = -1) // disconnect everyone if ID is not supplied or is -1
+        private void Disconnect(int id = -1) // disconnect everyone
         {
             if (disconnect == null || !disconnect.IsAlive)
             {
